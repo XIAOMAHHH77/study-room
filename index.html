@@ -4113,7 +4113,36 @@
   var swiperNextBtn = document.getElementById('swiperNext');
   if (swiperPrevBtn) swiperPrevBtn.addEventListener('click', function() { swiperSlide('prev'); });
   if (swiperNextBtn) swiperNextBtn.addEventListener('click', function() { swiperSlide('next'); });
-  if ($setupScenes) $setupScenes.addEventListener('scroll', function() { updateDots(); });
+  var swiperSelectTimer = null;
+  if ($setupScenes) {
+    $setupScenes.addEventListener('scroll', function() {
+      updateDots();
+      // 自动选中中央卡片
+      clearTimeout(swiperSelectTimer);
+      swiperSelectTimer = setTimeout(function() {
+        var cards = document.querySelectorAll('.setup-scene-card');
+        var container = $setupScenes;
+        if (!cards.length || !container) return;
+        var center = container.scrollLeft + container.offsetWidth / 2;
+        var closest = null, minDist = Infinity;
+        cards.forEach(function(c) {
+          var dist = Math.abs((c.offsetLeft + c.offsetWidth / 2) - center);
+          if (dist < minDist) { minDist = dist; closest = c; }
+        });
+        if (closest) {
+          var sceneId = closest.getAttribute('data-scene');
+          if (sceneId !== setupSelectedScene) {
+            selectSetupScene(sceneId, closest);
+          }
+        }
+      }, 150);
+    });
+    // 鼠标滚轮 → 水平滑动
+    $setupScenes.addEventListener('wheel', function(e) {
+      e.preventDefault();
+      $setupScenes.scrollLeft += e.deltaY * 1.5;
+    }, { passive: false });
+  }
 
   // 启动视觉特效
   initAurora();
