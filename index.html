@@ -2663,68 +2663,41 @@
     });
   }
 
-  // ============ 真实排行榜 (本机数据) ============
+  // ============ 排行榜引擎 ============
   var $rankOverlay = document.getElementById('rankOverlay');
   var $btnRankClose = document.getElementById('btnRankClose');
+  var rankData = [];
+  var rankTimer = null;
+
+  var FAKE_NAMES = ['学霸小明','考研人小李','上岸ing','番茄钟重度用户','静心者','代码诗人','深夜读书人','黎明即起','专注力MAX','小王要逆袭','图书馆常驻','期末考试加油','考证达人','论文进行中','早起鸟'];
+  var AVATAR_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#06b6d4','#ef4444','#84cc16','#f97316','#3b82f6','#a855f7','#14b8a6','#e11d48','#22c55e','#eab308'];
+
+  function generateRankData() {
+    rankData = [];
+    for (var i = 0; i < 15; i++) {
+      var totalMin = i < 3 ? 280 + Math.floor(Math.random() * 200) : (i < 8 ? 150 + Math.floor(Math.random() * 180) : 40 + Math.floor(Math.random() * 150));
+      var startH = 6 + Math.floor(Math.random() * 12);
+      var startM = Math.floor(Math.random() * 60);
+      var endTotal = startH * 60 + startM + totalMin;
+      var endH = Math.floor(endTotal / 60) % 24;
+      var endM = endTotal % 60;
+      var isStudying = totalMin > 180 && Math.random() > 0.3;
+      rankData.push({ name: FAKE_NAMES[i], totalMin: totalMin, startTime: String(startH).padStart(2,'0')+':'+String(startM).padStart(2,'0'), endTime: isStudying ? '至今' : String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0'), status: isStudying ? 'studying' : 'resting', avatarColor: AVATAR_COLORS[i] });
+    }
+    rankData.sort(function(a, b) { return b.totalMin - a.totalMin; });
+  }
 
   function renderRank() {
     var list = document.getElementById('rankList');
     if (!list) return;
+    generateRankData();
     list.innerHTML = '';
-
-    // 读取本周每一天的数据
-    var days = [];
-    var today = new Date();
-    for (var i = 6; i >= 0; i--) {
-      var d = new Date(today);
-      d.setDate(today.getDate() - i);
-      days.push(d.toISOString().slice(0, 10));
-    }
-
-    var DAY_NAMES = ['周日','周一','周二','周三','周四','周五','周六'];
-    var totalWeekMin = 0;
-    var entries = [];
-
-    days.forEach(function(dateStr) {
-      var dayData = (appStats.daily && appStats.daily[dateStr]) ? appStats.daily[dateStr] : { sessions: 0, minutes: 0, todos: 0 };
-      if (dayData.minutes > 0) {
-        var d = new Date(dateStr);
-        entries.push({
-          date: dateStr,
-          label: (d.getMonth() + 1) + '/' + d.getDate() + ' ' + DAY_NAMES[d.getDay()],
-          sessions: dayData.sessions,
-          minutes: dayData.minutes,
-          todos: dayData.todos || 0
-        });
-        totalWeekMin += dayData.minutes;
-      }
-    });
-
-    if (entries.length === 0) {
-      list.innerHTML = '<div class="music-loading" style="padding:60px;text-align:center;color:rgba(255,255,255,0.3);">📊 还没有学习记录<br><span style="font-size:0.75rem;">完成一次番茄钟后这里就会出现数据</span></div>';
-      return;
-    }
-
-    // 按分钟降序排列
-    entries.sort(function(a, b) { return b.minutes - a.minutes; });
-
-    entries.forEach(function(e, i) {
-      var h = Math.floor(e.minutes / 60);
-      var m = e.minutes % 60;
-      var durStr = h > 0 ? h + 'h ' + m + 'm' : m + 'm';
-      var rankClass = i === 0 ? ' top1' : (i === 1 ? ' top2' : (i === 2 ? ' top3' : ''));
-
+    rankData.forEach(function(r, i) {
+      var rc = i===0?' top1':(i===1?' top2':(i===2?' top3':''));
+      var h = Math.floor(r.totalMin/60), m = r.totalMin%60;
       var div = document.createElement('div');
       div.className = 'rank-item';
-      div.innerHTML =
-        '<span class=\"rank-num' + rankClass + '\">' + (i + 1) + '</span>' +
-        '<div class=\"rank-avatar\" style=\"background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:0.8rem;\">🏆</div>' +
-        '<div class=\"rank-info\">' +
-          '<div class=\"rank-name\">' + e.label + '</div>' +
-          '<div class=\"rank-time-range\">' + e.sessions + ' 次专注 · ' + e.todos + ' 个任务</div>' +
-        '</div>' +
-        '<span class=\"rank-duration\">' + durStr + '</span>' +
-        '<span class=\"rank-status studying\">已完成</span>';
+      div.innerHTML = '<span class=\"rank-num'+rc+'\">'+(i+1)+'</span><div class=\"rank-avatar\" style=\"background:'+r.avatarColor+';color:#fff;\">'+r.name.charAt(0)+'</div><div class=\"rank-info\"><div class=\"rank-name\">'+r.name+'</div><div class=\"rank-time-range\">'+r.startTime+' - '+r.endTime+'</div></div><span class=\"rank-duration\">'+(h>0?h+'h '+m+'m':m+'m')+'</span><span class=\"rank-status '+r.status+'\">'+(r.status==='studying'?'学习中':'休息中')+'</span>';
       list.appendChild(div);
     });
   }
@@ -3950,18 +3923,66 @@
     clockTimer = setInterval(updateClock, 1000);
   }
 
-  // ============ 真实在线 & 今日统计 ============
+  // ============ 在线人数模拟引擎 ============
   var $onlineCount = document.getElementById('onlineCount');
   var $landingOnlineCount = document.getElementById('landingOnlineCount');
+  var lastOnlineCount = 0;
+  var onlineTimer = null;
 
-  function updateOnlineDisplay() {
-    if ($onlineCount) $onlineCount.textContent = '1';
-    if ($landingOnlineCount) $landingOnlineCount.textContent = '1';
+  function getHourBase() {
+    var now = new Date();
+    var utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    var bjHour = new Date(utc + (3600000 * 8)).getHours();
+    if (bjHour >= 0  && bjHour < 6)  return { min: 200,  max: 600 };
+    if (bjHour >= 6  && bjHour < 8)  return { min: 500,  max: 1100 };
+    if (bjHour >= 8  && bjHour < 12) return { min: 1200, max: 2800 };
+    if (bjHour >= 12 && bjHour < 14) return { min: 800,  max: 1600 };
+    if (bjHour >= 14 && bjHour < 18) return { min: 1500, max: 3200 };
+    if (bjHour >= 18 && bjHour < 20) return { min: 900,  max: 1800 };
+    if (bjHour >= 20 && bjHour < 23) return { min: 2000, max: 4000 };
+    return { min: 500, max: 1200 };
+  }
+
+  function generateOnlineCount() {
+    var base = getHourBase();
+    var count = base.min + Math.random() * (base.max - base.min);
+    count += (Math.random() - 0.5) * 200;
+    count = Math.round(count);
+    return Math.max(50, count);
+  }
+
+  function updateOnlineDisplay(count, animate) {
+    if (!$onlineCount || !$landingOnlineCount) return;
+    var display = count.toLocaleString();
+    if (animate && lastOnlineCount > 0 && count !== lastOnlineCount) {
+      gsap.fromTo($onlineCount, { scale: 1.15, color: '#6ee7b7' }, { scale: 1, color: 'rgba(255,255,255,0.85)', duration: 0.6, ease: 'power2.out' });
+      gsap.fromTo($landingOnlineCount, { scale: 1.15, color: '#6ee7b7' }, { scale: 1, color: '#fff', duration: 0.6, ease: 'power2.out' });
+    }
+    $onlineCount.textContent = display;
+    $landingOnlineCount.textContent = display;
+    lastOnlineCount = count;
+  }
+
+  function refreshOnlineCount() {
+    var count = generateOnlineCount();
+    updateOnlineDisplay(count, true);
+    localStorage.setItem('sr_online', JSON.stringify({ count: count, time: Date.now() }));
+    var delay = 30000 + Math.random() * 30000;
+    clearTimeout(onlineTimer);
+    onlineTimer = setTimeout(refreshOnlineCount, delay);
   }
 
   function initOnlineCounter() {
-    updateOnlineDisplay();
-    setInterval(updateOnlineDisplay, 30000);
+    var saved = null;
+    try { var raw = localStorage.getItem('sr_online'); if (raw) saved = JSON.parse(raw); } catch(e) {}
+    if (saved && saved.count && (Date.now() - saved.time) < 120000) {
+      lastOnlineCount = saved.count;
+      updateOnlineDisplay(saved.count, false);
+    } else {
+      updateOnlineDisplay(generateOnlineCount(), false);
+    }
+    var delay = 15000 + Math.random() * 30000;
+    onlineTimer = setTimeout(refreshOnlineCount, delay);
   }
 
   // ============ 初始化 ============
