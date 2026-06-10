@@ -1509,42 +1509,38 @@
   }
   .setup-scenes {
     display: flex;
-    gap: 24px;
+    gap: 0;
     margin-bottom: 40px;
     width: 100%;
     max-width: 1100px;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding: 20px 60px 30px;
+    overflow: hidden;
+    padding: 40px 0 30px;
     align-items: center;
+    position: relative;
+    height: 340px;
   }
   .setup-scenes::-webkit-scrollbar { display: none; }
   .setup-scene-card {
-    position: relative;
+    position: absolute;
     border-radius: 24px;
     overflow: hidden;
-    flex-shrink: 0;
-    width: 460px;
+    width: 480px;
     height: 300px;
     cursor: pointer;
-    border: 2px solid rgba(255,255,255,0.12);
+    border: 2px solid rgba(255,255,255,0.1);
     background-color: rgba(255,255,255,0.06);
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    scroll-snap-align: center;
-    transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    will-change: transform, opacity;
   }
   .setup-scene-card:hover {
-    transform: scale(1.03);
     border-color: rgba(255,255,255,0.35);
   }
   .setup-scene-card.selected {
     border-color: rgba(110,231,183,0.8);
-    box-shadow: 0 0 50px rgba(110,231,183,0.25);
-    transform: scale(1.04);
+    box-shadow: 0 0 60px rgba(110,231,183,0.3);
   }
   .setup-scene-card img {
     width: 100%; height: 100%;
@@ -3458,28 +3454,31 @@
   var $btnSetupBack = document.getElementById('btnSetupBack');
   var setupSelectedScene = currentScene;
 
+  var swiperCards = [];
+  var swiperIndex = 0;
+  var swiperCardW = 480;
+  var swiperGap = 20;
+
   function buildSetupScenes() {
     if (!$setupScenes) return;
     $setupScenes.innerHTML = '';
+    swiperCards = [];
 
     var ids = Object.keys(SCENES);
-    if (ids.length === 0) return;
-
-    ids.forEach(function(id) {
+    ids.forEach(function(id, i) {
       var scene = SCENES[id];
       if (!scene) return;
       var card = document.createElement('div');
       card.className = 'setup-scene-card';
-      if (id === setupSelectedScene) card.classList.add('selected');
+      if (id === setupSelectedScene) { card.classList.add('selected'); swiperIndex = i; }
       card.setAttribute('data-scene', id);
       var imgUrl = scene.bg || '';
       card.style.backgroundImage = 'url(' + imgUrl + ')';
       card.style.backgroundSize = 'cover';
       card.style.backgroundPosition = 'center';
-      card.style.backgroundColor = 'rgba(255,255,255,0.08)';
+      card.style.backgroundColor = 'rgba(255,255,255,0.06)';
       var icon = document.createElement('span');
-      icon.className = 'setup-scene-icon';
-      icon.textContent = scene.icon || '';
+      icon.className = 'setup-scene-icon'; icon.textContent = scene.icon || '';
       card.appendChild(icon);
       var img = document.createElement('img');
       img.src = imgUrl; img.alt = scene.label || '';
@@ -3487,87 +3486,100 @@
       img.onerror = function() { this.style.display = 'none'; };
       card.appendChild(img);
       var label = document.createElement('span');
-      label.className = 'setup-scene-label';
-      label.textContent = scene.label || '';
+      label.className = 'setup-scene-label'; label.textContent = scene.label || '';
       card.appendChild(label);
       var check = document.createElement('span');
-      check.className = 'setup-scene-check';
-      check.textContent = '✓';
+      check.className = 'setup-scene-check'; check.textContent = '✓';
       card.appendChild(check);
+
       card.addEventListener('click', function() {
-        var sceneId = this.getAttribute('data-scene');
-        selectSetupScene(sceneId, this);
+        var idx = parseInt(this.getAttribute('data-index'));
+        swiperGoTo(idx);
       });
+      card.setAttribute('data-index', i);
       $setupScenes.appendChild(card);
+      swiperCards.push(card);
     });
 
-    // 构建圆点
     buildSwiperDots();
-    // 滚动到已选卡片
-    setTimeout(function() { scrollToSelectedCard(); }, 200);
+    updateCardPositions(true);
   }
 
   function buildSwiperDots() {
     var dots = document.getElementById('swiperDots');
     if (!dots) return;
     dots.innerHTML = '';
-    var ids = Object.keys(SCENES);
-    ids.forEach(function(id, i) {
+    swiperCards.forEach(function(c, i) {
       var dot = document.createElement('div');
-      dot.className = 'swiper-dot' + (id === setupSelectedScene ? ' active' : '');
-      dot.dataset.index = i;
-      dot.addEventListener('click', function() {
-        var cards = document.querySelectorAll('.setup-scene-card');
-        if (cards[i]) {
-          cards[i].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        }
-      });
+      dot.className = 'swiper-dot' + (i === swiperIndex ? ' active' : '');
+      dot.addEventListener('click', function() { swiperGoTo(i); });
       dots.appendChild(dot);
     });
   }
 
-  function updateDots() {
-    var cards = document.querySelectorAll('.setup-scene-card');
-    var container = $setupScenes;
-    if (!container || !cards.length) return;
-    var center = container.scrollLeft + container.offsetWidth / 2;
-    var closest = 0, minDist = Infinity;
-    cards.forEach(function(c, i) {
-      var dist = Math.abs((c.offsetLeft + c.offsetWidth / 2) - center);
-      if (dist < minDist) { minDist = dist; closest = i; }
-    });
-    document.querySelectorAll('.swiper-dot').forEach(function(d, i) {
-      d.classList.toggle('active', i === closest);
-    });
-  }
+  function updateCardPositions(instant) {
+    if (!swiperCards.length || !$setupScenes) return;
 
-  function scrollToSelectedCard() {
-    var selected = $setupScenes.querySelector('.setup-scene-card.selected');
-    if (selected) {
-      selected.scrollIntoView({ behavior: 'instant', block: 'nearest', inline: 'center' });
+    var containerW = $setupScenes.offsetWidth;
+    var centerX = containerW / 2;
+
+    swiperCards.forEach(function(card, i) {
+      var offset = i - swiperIndex;
+      var x = centerX - swiperCardW / 2 + offset * (swiperCardW + swiperGap);
+
+      // 根据距离中心的偏移计算缩放和透明度
+      var dist = Math.abs(offset);
+      var scale = dist === 0 ? 1.0 : (dist === 1 ? 0.88 : 0.78);
+      var opacity = dist === 0 ? 1 : (dist === 1 ? 0.55 : 0.25);
+      var zIndex = dist === 0 ? 10 : (dist === 1 ? 5 : 1);
+
+      if (instant) {
+        card.style.transform = 'translateX(' + x + 'px) scale(' + scale + ')';
+        card.style.opacity = opacity;
+        card.style.zIndex = zIndex;
+      } else {
+        gsap.to(card, {
+          x: x,
+          scale: scale,
+          opacity: opacity,
+          zIndex: zIndex,
+          duration: 0.55,
+          ease: 'power3.out',
+          overwrite: 'auto'
+        });
+      }
+    });
+
+    // 更新选中态
+    swiperCards.forEach(function(card, i) {
+      card.classList.toggle('selected', i === swiperIndex);
+    });
+    buildSwiperDots();
+
+    // 触发场景背景预览
+    var selId = swiperCards[swiperIndex].getAttribute('data-scene');
+    if (selId !== setupSelectedScene) {
+      setupSelectedScene = selId;
+      applySceneBackground(selId);
     }
   }
 
+  function swiperGoTo(idx) {
+    idx = Math.max(0, Math.min(swiperCards.length - 1, idx));
+    if (idx === swiperIndex) return;
+    swiperIndex = idx;
+    updateCardPositions(false);
+  }
+
   function swiperSlide(dir) {
-    var cards = document.querySelectorAll('.setup-scene-card');
-    var container = $setupScenes;
-    if (!cards.length || !container) return;
-    var cardW = cards[0].offsetWidth + 24; // card width + gap
-    var target = container.scrollLeft + (dir === 'next' ? cardW : -cardW);
-    var cardIdx = Math.round(target / cardW);
-    cardIdx = Math.max(0, Math.min(cards.length - 1, cardIdx));
-    var newLeft = cardIdx * cardW - (container.offsetWidth - cards[cardIdx].offsetWidth) / 2;
-    container.scrollTo({ left: Math.max(0, newLeft), behavior: 'smooth' });
+    swiperGoTo(swiperIndex + (dir === 'next' ? 1 : -1));
   }
 
   function selectSetupScene(sceneId, cardEl) {
     setupSelectedScene = sceneId;
-    document.querySelectorAll('.setup-scene-card').forEach(function(c) { c.classList.remove('selected'); });
-    cardEl.classList.add('selected');
-    gsap.fromTo(cardEl, { scale: 0.94 }, { scale: 1, duration: 0.4, ease: 'back.out(2.5)' });
-    cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    buildSwiperDots();
-    applySceneBackground(sceneId);
+    var idx = parseInt(cardEl.getAttribute('data-index'));
+    if (idx === swiperIndex) return;
+    swiperGoTo(idx);
   }
 
   function applySceneBackground(sceneId) {
@@ -4113,36 +4125,49 @@
   var swiperNextBtn = document.getElementById('swiperNext');
   if (swiperPrevBtn) swiperPrevBtn.addEventListener('click', function() { swiperSlide('prev'); });
   if (swiperNextBtn) swiperNextBtn.addEventListener('click', function() { swiperSlide('next'); });
-  var swiperSelectTimer = null;
+
+  // 鼠标滚轮
+  var wheelTimer = null;
   if ($setupScenes) {
-    $setupScenes.addEventListener('scroll', function() {
-      updateDots();
-      // 自动选中中央卡片
-      clearTimeout(swiperSelectTimer);
-      swiperSelectTimer = setTimeout(function() {
-        var cards = document.querySelectorAll('.setup-scene-card');
-        var container = $setupScenes;
-        if (!cards.length || !container) return;
-        var center = container.scrollLeft + container.offsetWidth / 2;
-        var closest = null, minDist = Infinity;
-        cards.forEach(function(c) {
-          var dist = Math.abs((c.offsetLeft + c.offsetWidth / 2) - center);
-          if (dist < minDist) { minDist = dist; closest = c; }
-        });
-        if (closest) {
-          var sceneId = closest.getAttribute('data-scene');
-          if (sceneId !== setupSelectedScene) {
-            selectSetupScene(sceneId, closest);
-          }
-        }
-      }, 150);
-    });
-    // 鼠标滚轮 → 水平滑动
     $setupScenes.addEventListener('wheel', function(e) {
       e.preventDefault();
-      $setupScenes.scrollLeft += e.deltaY * 1.5;
+      clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(function() {
+        if (e.deltaY > 30) swiperSlide('next');
+        else if (e.deltaY < -30) swiperSlide('prev');
+      }, 50);
     }, { passive: false });
   }
+
+  // 触摸/鼠标拖拽
+  var dragStart = 0, dragMoved = false;
+  if ($setupScenes) {
+    $setupScenes.addEventListener('mousedown', function(e) { dragStart = e.clientX; dragMoved = false; });
+    $setupScenes.addEventListener('mousemove', function(e) {
+      if (dragStart === 0) return;
+      if (Math.abs(e.clientX - dragStart) > 20) dragMoved = true;
+    });
+    $setupScenes.addEventListener('mouseup', function(e) {
+      if (!dragMoved) { dragStart = 0; return; }
+      if (e.clientX - dragStart < -60) swiperSlide('next');
+      else if (e.clientX - dragStart > 60) swiperSlide('prev');
+      dragStart = 0; dragMoved = false;
+    });
+    $setupScenes.addEventListener('mouseleave', function() { dragStart = 0; });
+    // 触摸
+    $setupScenes.addEventListener('touchstart', function(e) { dragStart = e.touches[0].clientX; dragMoved = false; });
+    $setupScenes.addEventListener('touchmove', function(e) { if (Math.abs(e.touches[0].clientX - dragStart) > 20) dragMoved = true; });
+    $setupScenes.addEventListener('touchend', function(e) {
+      if (!dragMoved) { dragStart = 0; return; }
+      var endX = e.changedTouches[0].clientX;
+      if (endX - dragStart < -60) swiperSlide('next');
+      else if (endX - dragStart > 60) swiperSlide('prev');
+      dragStart = 0; dragMoved = false;
+    });
+  }
+
+  // 窗口 resize 时重新计算位置
+  window.addEventListener('resize', function() { if (swiperCards.length) updateCardPositions(true); });
 
   // 启动视觉特效
   initAurora();
