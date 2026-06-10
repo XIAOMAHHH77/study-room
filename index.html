@@ -1724,7 +1724,7 @@
   <div class="online-counter" id="onlineCounter" title="实时在线人数">
     <span class="online-dot"></span>
     <span class="online-count" id="onlineCount">--</span>
-    <span class="online-label">今日专注</span>
+    <span class="online-label">人在学习</span>
   </div>
   <div class="nav-links">
     <div style="position:relative;">
@@ -3955,11 +3955,8 @@
   var $landingOnlineCount = document.getElementById('landingOnlineCount');
 
   function updateOnlineDisplay() {
-    var today = getTodayStats();
-    var min = today.minutes || 0;
-    var display = min > 0 ? '今日 ' + min + ' min' : '开始专注吧';
-    if ($onlineCount) $onlineCount.textContent = display;
-    if ($landingOnlineCount) $landingOnlineCount.textContent = display;
+    if ($onlineCount) $onlineCount.textContent = '1';
+    if ($landingOnlineCount) $landingOnlineCount.textContent = '1';
   }
 
   function initOnlineCounter() {
