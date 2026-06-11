@@ -3124,12 +3124,19 @@
     var name = this.value.trim() || '自习者';
     userProfile.nickname = name;
     saveProfile(userProfile);
-    // 同步到用户数据
+    // 同步到用户数据（只改昵称，不动密码）
     try {
       var u = JSON.parse(localStorage.getItem('sr_current_user'));
       if (u) { u.nickname = name; localStorage.setItem('sr_current_user', JSON.stringify(u)); }
-      var users = JSON.parse(localStorage.getItem('sr_users') || '{}');
-      if (u && users[u.username]) { users[u.username].nickname = name; localStorage.setItem('sr_users', JSON.stringify(users)); }
+      var rawUsers = localStorage.getItem('sr_users');
+      if (rawUsers) {
+        var usersData = JSON.parse(rawUsers);
+        if (usersData && typeof usersData === 'object' && u && usersData[u.username]) {
+          // 保留所有原有字段，只改 nickname
+          usersData[u.username].nickname = name;
+          localStorage.setItem('sr_users', JSON.stringify(usersData));
+        }
+      }
     } catch(e) {}
   });
 

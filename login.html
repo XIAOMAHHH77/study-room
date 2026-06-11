@@ -365,11 +365,20 @@
 
 <script>
 var CODE = '26610';
-var users = {};
 
-(function load() {
-  try { var d = localStorage.getItem('sr_users'); if (d) users = JSON.parse(d); } catch(e) {}
-})();
+function loadUsers() {
+  try {
+    var d = localStorage.getItem('sr_users');
+    if (d) {
+      var parsed = JSON.parse(d);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    }
+  } catch(e) {}
+  return {};
+}
+var users = loadUsers();
+
+function save() { localStorage.setItem('sr_users', JSON.stringify(users)); }
 
 function save() { localStorage.setItem('sr_users', JSON.stringify(users)); }
 
